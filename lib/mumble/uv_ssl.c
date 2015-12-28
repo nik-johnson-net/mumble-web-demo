@@ -15,8 +15,15 @@ static long uv_ssl_rbio_cb(BIO *b, int oper, const char *argp, int argi, long ar
     case BIO_CB_WRITE:
       fprintf(stderr, "Write from network into input buffer\n");
       // Input from UV
-      fprintf(stderr, "Calling SSL_do_handshake\n");
-      uv_ssl_handshake(socket);
+
+      if (SSL_in_init(socket->ssl)) {
+        fprintf(stderr, "Calling SSL_do_handshake\n");
+        uv_ssl_handshake(socket);
+      } else if (SSL_is_init_finished(socket->ssl)) {
+        fprintf(stderr, "Reading from network when state is connected\n");
+      } else {
+        fprintf(stderr, "Reading from network when state unknown\n");
+      }
       break;
     case BIO_CB_READ:
       // Output to SSL
@@ -63,6 +70,8 @@ void mumble_uv_ssl_init(tcp_ssl_t *socket) {
   SSL_CTX *ssl_ctx = SSL_CTX_new(SSLv23_client_method());
   assert(ssl_ctx != NULL);
 
+  ret = SSL_CTX_set_default_verify_paths(ssl_ctx);
+  assert(ret == 1);
   SSL_CTX_set_options(ssl_ctx, SSL_OP_NO_SSLv3);
   SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_NONE, NULL);
   socket->ssl = SSL_new(ssl_ctx);

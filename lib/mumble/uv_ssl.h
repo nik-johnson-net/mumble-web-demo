@@ -1,9 +1,6 @@
 #ifndef _MUMBLE_UV_SSL_H_
 #define _MUMBLE_UV_SSL_H_
 
-// #include <uv.h>
-// typedef struct _tcp_ssl_t tcp_ssl_t;
-
 #include <openssl/ssl.h>
 #include <uv.h>
 
