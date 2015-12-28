@@ -10,8 +10,6 @@
 typedef struct {
   SSL *ssl;
   uv_tcp_t tcp;
-  BIO *rbio;
-  BIO *wbio;
 } tcp_ssl_t;
 
 void mumble_uv_ssl_init(tcp_ssl_t *socket);

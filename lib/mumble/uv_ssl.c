@@ -4,7 +4,11 @@
 #include "uv_ssl.h"
 
 static void uv_ssl_handshake(tcp_ssl_t *socket);
+static void uv_ssl_write_cb(uv_write_t* req, int status);
 
+/* Called after libuv receives data on the socket.
+ * Either finishes the handshake or calls the user cb
+ */
 static long uv_ssl_rbio_cb(BIO *b, int oper, const char *argp, int argi, long argl, long retvalue) {
   tcp_ssl_t *socket = (tcp_ssl_t*)BIO_get_callback_arg(b);
   switch (oper) {
@@ -24,8 +28,8 @@ static long uv_ssl_rbio_cb(BIO *b, int oper, const char *argp, int argi, long ar
 }
 
 
-static void uv_ssl_write_cb(uv_write_t* req, int status);
-
+/* Called when libssl wants to send data to the socket.
+ */
 static long uv_ssl_wbio_cb(BIO *b, int oper, const char *argp, int argi, long argl, long retvalue) {
   tcp_ssl_t *socket = (tcp_ssl_t*)BIO_get_callback_arg(b);
   switch (oper) {
@@ -33,10 +37,6 @@ static long uv_ssl_wbio_cb(BIO *b, int oper, const char *argp, int argi, long ar
       fprintf(stderr, "Write into output buffer\n");
       // Input from SSL
       uv_write_t* req = (uv_write_t*)malloc(sizeof(uv_write_t));
-      /*uv_buf_t *buf = (uv_buf_t*)malloc(sizeof(uv_buf_t));
-      buf->base = (char*)malloc(argi);
-      buf->len = argi;
-      BIO_read(b, buf->base, buf->len);*/
       char* arg = malloc(argi);
       memcpy(arg, argp, argi);
       uv_buf_t buf = uv_buf_init(arg, argi);
@@ -53,6 +53,8 @@ static long uv_ssl_wbio_cb(BIO *b, int oper, const char *argp, int argi, long ar
   return retvalue;
 }
 
+/* Initializes a socket with a libuv tcp handle and proper SSL objects
+ */
 void mumble_uv_ssl_init(tcp_ssl_t *socket) {
   int ret = uv_tcp_init(uv_default_loop(), &socket->tcp);
   socket->tcp.data = socket;
@@ -67,15 +69,15 @@ void mumble_uv_ssl_init(tcp_ssl_t *socket) {
   SSL_CTX_free(ssl_ctx);
   assert(socket->ssl != NULL);
 
-  socket->rbio = BIO_new(BIO_s_mem());
-  BIO_set_callback(socket->rbio, uv_ssl_rbio_cb);
-  BIO_set_callback_arg(socket->rbio, (char*)socket);
+  BIO *rbio = BIO_new(BIO_s_mem());
+  BIO_set_callback(rbio, uv_ssl_rbio_cb);
+  BIO_set_callback_arg(rbio, (char*)socket);
 
-  socket->wbio = BIO_new(BIO_s_null());
-  BIO_set_callback(socket->wbio, uv_ssl_wbio_cb);
-  BIO_set_callback_arg(socket->wbio, (char*)socket);
+  BIO *wbio = BIO_new(BIO_s_null());
+  BIO_set_callback(wbio, uv_ssl_wbio_cb);
+  BIO_set_callback_arg(wbio, (char*)socket);
 
-  SSL_set_bio(socket->ssl, socket->rbio, socket->wbio);
+  SSL_set_bio(socket->ssl, rbio, wbio);
   SSL_set_connect_state(socket->ssl);
 }
 
@@ -89,7 +91,9 @@ static void uv_ssl_read_cb(uv_stream_t* stream, ssize_t nread, const uv_buf_t* b
   if (nread > 0) {
     fprintf(stderr, "uv_ssl_read_cb copying to input\n");
     tcp_ssl_t *client = (tcp_ssl_t*)stream->data;
-    BIO_write(client->rbio, buf->base, buf->len);
+    BIO *rbio = SSL_get_rbio(client->ssl);
+    assert(rbio != NULL);
+    BIO_write(rbio, buf->base, buf->len);
     free(buf->base);
   }
 }
