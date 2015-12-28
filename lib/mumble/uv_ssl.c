@@ -12,7 +12,7 @@ static void uv_ssl_write_cb(uv_write_t* req, int status);
 static long uv_ssl_rbio_cb(BIO *b, int oper, const char *argp, int argi, long argl, long retvalue) {
   tcp_ssl_t *socket = (tcp_ssl_t*)BIO_get_callback_arg(b);
   switch (oper) {
-    case BIO_CB_WRITE:
+    case BIO_CB_WRITE|BIO_CB_RETURN:
       fprintf(stderr, "Write from network into input buffer\n");
       // Input from UV
 
@@ -40,7 +40,7 @@ static long uv_ssl_rbio_cb(BIO *b, int oper, const char *argp, int argi, long ar
 static long uv_ssl_wbio_cb(BIO *b, int oper, const char *argp, int argi, long argl, long retvalue) {
   tcp_ssl_t *socket = (tcp_ssl_t*)BIO_get_callback_arg(b);
   switch (oper) {
-    case BIO_CB_WRITE:
+    case BIO_CB_WRITE|BIO_CB_RETURN:
       fprintf(stderr, "Write into output buffer\n");
       // Input from SSL
       uv_write_t* req = (uv_write_t*)malloc(sizeof(uv_write_t));
@@ -74,6 +74,7 @@ void mumble_uv_ssl_init(tcp_ssl_t *socket) {
   assert(ret == 1);
   SSL_CTX_set_options(ssl_ctx, SSL_OP_NO_SSLv3);
   SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_NONE, NULL);
+
   socket->ssl = SSL_new(ssl_ctx);
   SSL_CTX_free(ssl_ctx);
   assert(socket->ssl != NULL);
@@ -102,7 +103,7 @@ static void uv_ssl_read_cb(uv_stream_t* stream, ssize_t nread, const uv_buf_t* b
     tcp_ssl_t *client = (tcp_ssl_t*)stream->data;
     BIO *rbio = SSL_get_rbio(client->ssl);
     assert(rbio != NULL);
-    BIO_write(rbio, buf->base, buf->len);
+    BIO_write(rbio, buf->base, nread);
     free(buf->base);
   }
 }
@@ -119,6 +120,7 @@ static void uv_ssl_handshake(tcp_ssl_t *socket) {
   switch (req) {
     default:
       fprintf(stderr, "SSL handshake %d\n", req);
+      fprintf(stderr, "SSL State: %s\n", SSL_state_string_long(socket->ssl));
       break;
   }
 }
