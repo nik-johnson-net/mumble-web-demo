@@ -1,6 +1,8 @@
 **/CMakeFiles/
 **/cmake_install.cmake
 *.swp
+*.a
 3rdparty/UV-prefix/
 CMakeCache.txt
 Makefile
+src/mumbleweb
