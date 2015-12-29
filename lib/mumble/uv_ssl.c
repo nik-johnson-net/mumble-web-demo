@@ -11,6 +11,36 @@ typedef struct {
 static void uv_ssl_handshake(uv_ssl_connect_req_t *creq);
 static void uv_ssl_write_cb(uv_write_t* req, int status);
 
+
+static void uv_ssl_read(tcp_ssl_t *socket) {
+  int retry = 1;
+  while (retry) {
+    char *buf = malloc(1024);
+    int ret = SSL_read(socket->ssl, buf, 1024);
+    if (ret > 0) {
+      if (socket->cb != NULL) {
+        socket->cb(socket, MUMBLE_CONNECTED, buf, ret);
+      }
+    } else if (ret == 0) {
+      retry = 0;
+    } else {
+      int r = SSL_get_error(socket->ssl, ret);
+      switch (r) {
+        case SSL_ERROR_WANT_READ:
+          retry = 0;
+          break;
+        case SSL_ERROR_WANT_WRITE:
+          retry = 0;
+          break;
+        default:
+          fprintf(stderr, "idk %d\n", r);
+          break;
+      }
+    }
+    free(buf);
+  }
+}
+
 /* Called after libuv receives data on the socket.
  * Either finishes the handshake or calls the user cb
  */
@@ -19,12 +49,12 @@ static long uv_ssl_rbio_cb(BIO *b, int oper, const char *argp, int argi, long ar
   switch (oper) {
     case BIO_CB_WRITE|BIO_CB_RETURN:
       // Writing from network to libssl buffer
-
       if (SSL_in_init(creq->socket->ssl)) {
         // Called during ssl handshake
         uv_ssl_handshake(creq);
       } else if (SSL_is_init_finished(creq->socket->ssl)) {
         // Tell SSL we have more data to decode
+        uv_ssl_read(creq->socket);
       } else {
         fprintf(stderr, "Reading from network when state unknown\n");
         abort();
@@ -76,6 +106,7 @@ void mumble_uv_ssl_init(tcp_ssl_t *socket) {
   // Create the libuv socket
   int ret = uv_tcp_init(uv_default_loop(), &socket->tcp);
   socket->tcp.data = socket;
+  socket->cb = NULL;
   assert(ret == 0);
 
   // Create a new SSL context
@@ -113,7 +144,8 @@ static void uv_ssl_read_cb(uv_stream_t* stream, ssize_t nread, const uv_buf_t* b
     tcp_ssl_t *client = (tcp_ssl_t*)stream->data;
     BIO *rbio = SSL_get_rbio(client->ssl);
     assert(rbio != NULL);
-    BIO_write(rbio, buf->base, nread);
+    int ret = BIO_write(rbio, buf->base, nread);
+    assert(ret == nread);
     free(buf->base);
   }
 }
@@ -197,6 +229,10 @@ void mumble_uv_ssl_connect(tcp_ssl_t *socket, const char* hostname, const char* 
 
   int ret = uv_getaddrinfo(uv_default_loop(), req, uv_ssl_dns_cb, hostname, port, &hints);
   assert(ret == 0);
+}
+
+void mumble_uv_ssl_set_cb(tcp_ssl_t *socket, mumble_uv_read_cb cb) {
+  socket->cb = cb;
 }
 
 int mumble_uv_ssl_write(tcp_ssl_t *socket, const void* buf, int size) {
