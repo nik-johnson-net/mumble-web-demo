@@ -2,20 +2,19 @@
 #define _MUMBLE_H_
 
 #include <stdint.h>
+#include "uv_ssl.h"
 
-#include <openssl/ssl.h>
-#include <uv.h>
-
-typedef struct {
+struct _mumble_client_t {
   const char *hostname;
   uint16_t port;
   const char *nick;
-  SSL *ssl;
-  uv_tcp_t conn;
-} mumble_client_t;
+  tcp_ssl_t socket;
+};
 
-void mumble_init(void);
+typedef struct _mumble_client_t mumble_client_t;
+
 void mumble_client_init(mumble_client_t *client, const char *hostname, uint16_t port, const char* nick);
 void mumble_client_connect(mumble_client_t *client);
+void mumble_client_on_message(mumble_client_t *client, int type, void *payload);
 
 #endif
