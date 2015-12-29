@@ -9,14 +9,8 @@
 #include <arpa/inet.h>
 
 
-typedef struct {
-  uint16_t type;
-  uint32_t length;
-  const char* payload;
-} mumble_packet_t;
-
 static void mumble_message_cb_adapter(tcp_ssl_t *socket, int status, const void* buf, int size) {
-  printf("Received\n");
+  mumble_client_t *client = (mumble_client_t*)socket->data;
   const char* ptr = buf;
   const char* end = buf + size;
   while (ptr < end) {
@@ -31,12 +25,14 @@ static void mumble_message_cb_adapter(tcp_ssl_t *socket, int status, const void*
     assert(ptr < end);
 
     p.payload = ptr;
+    ptr += p.length;
+    assert(ptr <= end);
 
     printf("Type: %d - len: %d\n", p.type, p.length);
-
-    ptr += p.length;
+    if (client->on_message != NULL) {
+      client->on_message(client, &p);
+    }
   }
-
 }
 
 static void mumble_connect_cb_adapter(tcp_ssl_t *socket, int status) {
@@ -59,11 +55,13 @@ static void mumble_connect_cb_adapter(tcp_ssl_t *socket, int status) {
 }
 
 void mumble_client_init(mumble_client_t *client, const char *hostname, uint16_t port, const char* nick) {
+  memset(client, 0, sizeof(mumble_client_t));
   client->hostname = hostname;
   client->port = port;
   client->nick = nick;
   mumble_uv_ssl_init(&client->socket);
   mumble_uv_ssl_set_cb(&client->socket, mumble_message_cb_adapter);
+  mumble_uv_ssl_set_data(&client->socket, client);
 }
 
 void mumble_client_connect(mumble_client_t *client) {
@@ -72,5 +70,6 @@ void mumble_client_connect(mumble_client_t *client) {
   mumble_uv_ssl_connect(&client->socket, client->hostname, port_str, mumble_connect_cb_adapter);
 }
 
-void mumble_client_on_message(mumble_client_t *client, int type, void *payload) {
+void mumble_client_set_on_message(mumble_client_t *client, mumble_client_on_message cb) {
+  client->on_message = cb;
 }

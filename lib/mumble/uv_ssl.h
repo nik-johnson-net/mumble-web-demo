@@ -16,12 +16,14 @@ struct _tcp_ssl_t {
   SSL *ssl;
   uv_tcp_t tcp;
   mumble_uv_read_cb cb;
+  void* data;
 };
 
 typedef struct _tcp_ssl_t tcp_ssl_t;
 
 void mumble_uv_ssl_init(tcp_ssl_t *socket);
 void mumble_uv_ssl_connect(tcp_ssl_t *socket, const char* hostname, const char* port, mumble_uv_connect_cb cb);
+void mumble_uv_ssl_set_data(tcp_ssl_t *socket, void *data);
 void mumble_uv_ssl_set_cb(tcp_ssl_t *socket, mumble_uv_read_cb cb);
 int mumble_uv_ssl_write(tcp_ssl_t *socket, const void* buf, int size);
 

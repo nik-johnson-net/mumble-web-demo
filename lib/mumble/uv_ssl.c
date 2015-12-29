@@ -110,10 +110,11 @@ static long uv_ssl_wbio_cb(BIO *b, int oper, const char *argp, int argi, long ar
 /* Initializes a socket with a libuv tcp handle and proper SSL objects
  */
 void mumble_uv_ssl_init(tcp_ssl_t *socket) {
+  memset(socket, 0, sizeof(tcp_ssl_t));
+
   // Create the libuv socket
   int ret = uv_tcp_init(uv_default_loop(), &socket->tcp);
   socket->tcp.data = socket;
-  socket->cb = NULL;
   assert(ret == 0);
 
   // Create a new SSL context
@@ -237,6 +238,10 @@ void mumble_uv_ssl_connect(tcp_ssl_t *socket, const char* hostname, const char* 
 
   int ret = uv_getaddrinfo(uv_default_loop(), req, uv_ssl_dns_cb, hostname, port, &hints);
   assert(ret == 0);
+}
+
+void mumble_uv_ssl_set_data(tcp_ssl_t *socket, void *data) {
+  socket->data = data;
 }
 
 void mumble_uv_ssl_set_cb(tcp_ssl_t *socket, mumble_uv_read_cb cb) {
