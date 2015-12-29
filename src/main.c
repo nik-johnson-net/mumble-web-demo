@@ -5,11 +5,9 @@
 const char *req = "GET / HTTP/1.1\r\nHost: twitter.com\r\nConnection: close\r\n\r\n";
 
 void on_data(tcp_ssl_t *socket, int status, char *buf, int size) {
-  // printf("status: %d (%d)\n", status, size);
   switch (status) {
     case MUMBLE_CONNECTED:
       if (buf[size-1] != '\0') {
-        // printf("appending null\n");
         buf = realloc(buf, size + 1);
         buf[size] = '\0';
       }

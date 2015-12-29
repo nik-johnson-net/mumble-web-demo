@@ -11,33 +11,40 @@ typedef struct {
 static void uv_ssl_handshake(uv_ssl_connect_req_t *creq);
 static void uv_ssl_write_cb(uv_write_t* req, int status);
 
+#define SSL_READ_BUFFER_SIZE 4096
+static int uv_ssl_do_read(tcp_ssl_t *socket) {
+  int retry = 1;
+
+  char *buf = malloc(SSL_READ_BUFFER_SIZE);
+  int ret = SSL_read(socket->ssl, buf, SSL_READ_BUFFER_SIZE);
+  if (ret > 0) {
+    if (socket->cb != NULL) {
+      socket->cb(socket, MUMBLE_CONNECTED, buf, ret);
+    }
+  } else if (ret == 0) {
+    int r = SSL_get_error(socket->ssl, ret);
+    fprintf(stderr, "Error when ret == 0: %d\n", r);
+    retry = 0;
+  } else {
+    int r = SSL_get_error(socket->ssl, ret);
+    switch (r) {
+      case SSL_ERROR_WANT_READ:
+        break;
+      case SSL_ERROR_WANT_WRITE:
+        break;
+      default:
+        fprintf(stderr, "Error when ret < 0: %d\n", r);
+        break;
+    }
+    retry = 0;
+  }
+  free(buf);
+
+  return retry;
+}
 
 static void uv_ssl_read(tcp_ssl_t *socket) {
-  int retry = 1;
-  while (retry) {
-    char *buf = malloc(1024);
-    int ret = SSL_read(socket->ssl, buf, 1024);
-    if (ret > 0) {
-      if (socket->cb != NULL) {
-        socket->cb(socket, MUMBLE_CONNECTED, buf, ret);
-      }
-    } else if (ret == 0) {
-      retry = 0;
-    } else {
-      int r = SSL_get_error(socket->ssl, ret);
-      switch (r) {
-        case SSL_ERROR_WANT_READ:
-          retry = 0;
-          break;
-        case SSL_ERROR_WANT_WRITE:
-          retry = 0;
-          break;
-        default:
-          fprintf(stderr, "idk %d\n", r);
-          break;
-      }
-    }
-    free(buf);
+  while (uv_ssl_do_read(socket)) {
   }
 }
 
