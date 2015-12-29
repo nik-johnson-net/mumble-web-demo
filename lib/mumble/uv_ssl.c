@@ -123,7 +123,8 @@ void mumble_uv_ssl_init(tcp_ssl_t *socket) {
   ret = SSL_CTX_set_default_verify_paths(ssl_ctx);
   assert(ret == 1);
   SSL_CTX_set_options(ssl_ctx, SSL_OP_NO_SSLv3);
-  SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_PEER, NULL);
+  // SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_PEER, NULL);
+  SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_NONE, NULL);
 
   socket->ssl = SSL_new(ssl_ctx);
   SSL_CTX_free(ssl_ctx);
