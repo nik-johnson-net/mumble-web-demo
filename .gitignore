@@ -2,7 +2,11 @@
 **/cmake_install.cmake
 *.swp
 *.a
+3rdparty/*-prefix
+3rdparty/protobuf-2.6.1/autom4te.cache/
+3rdparty/protobuf-2.6.1/gtest/
 3rdparty/UV-prefix/
 CMakeCache.txt
+lib/mumble/proto/Mumble.pb-c.*
 Makefile
 src/mumbleweb

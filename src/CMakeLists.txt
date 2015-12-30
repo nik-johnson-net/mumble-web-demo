@@ -9,18 +9,16 @@ add_dependencies(mumbleweb
 )
 
 target_include_directories(mumbleweb
-  PUBLIC "../lib/mumble"
+  PUBLIC "../lib"
   PUBLIC ${UV_INCLUDE_DIR}
   PUBLIC ${OPENSSL_INCLUDE_DIR}
-)
-
-link_directories(mumbleweb
-  ${UV_LIBRARIES}
 )
 
 target_link_libraries(mumbleweb
   mumble
   ${UV_LIBRARIES}/libuv.a
+  ${PROTOBUF_C_LIBRARIES}/libprotobuf-c.a
+  ${PROTOBUF_LIBRARIES}/libprotobuf.a
   "pthread"
   "ssl"
   "crypto"
