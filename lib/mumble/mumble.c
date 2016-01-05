@@ -1,5 +1,6 @@
 #include "mumble.h"
 #include "proto/Mumble.pb-c.h"
+#include "util.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -48,9 +49,26 @@ static const ProtobufCMessageDescriptor *descriptors(void) {
   return _descriptors;
 }
 
+static void mumble_message_(mumble_client_t *client, int type, ProtobufCMessage *message) {
+  switch (type) {
+    case MUMBLE_TYPE_UDPTUNNEL:
+      ;
+      MumbleProto__UDPTunnel *tunnel = (MumbleProto__UDPTunnel*)message;
+      break;
+  }
+}
+
 static void mumble_message_parse(mumble_client_t *client, const mumble_packet_t *p) {
   ProtobufCMessage *message = NULL;
   ProtobufCMessageDescriptor descriptor;
+
+  /* Special processing for audio tunnel */
+  if (p->type == MUMBLE_TYPE_UDPTUNNEL) {
+    mumble_audio_decoder_t *decoder = mumble_audio_decoder(&client->audio);
+    audio_decoded_t decoded;
+    mumble_audio_decoder_decode(decoder, p->payload, p->length, &decoded);
+    return;
+  }
 
   if (p->type < MUMBLE_TYPE_COUNT) {
     descriptor = descriptors()[p->type];
@@ -58,12 +76,12 @@ static void mumble_message_parse(mumble_client_t *client, const mumble_packet_t 
 
   message = protobuf_c_message_unpack(&descriptor, NULL, p->length, (const uint8_t*)p->payload);
 
-  if (message != NULL && client->on_message != NULL) {
-    client->on_message(client, p->type, message);
+  if (message != NULL && client->on_message.cb != NULL) {
+    client->on_message.cb(client, client->on_message.data, p->type, message);
   }
 }
 
-static void mumble_message_cb_adapter(tcp_ssl_t *socket, int status, const void* buf, int size) {
+static void mumble_message_cb_adapter(uv_tcp_ssl_t *socket, int status, const void* buf, int size) {
   mumble_client_t *client = (mumble_client_t*)socket->data;
   const char* ptr = buf;
   const char* end = buf + size;
@@ -95,7 +113,7 @@ static void mumble_client_on_ping(uv_timer_t *handle) {
   mumble_client_write(client, (ProtobufCMessage*)&ping);
 }
 
-static void mumble_connect_cb_adapter(tcp_ssl_t *socket, int status) {
+static void mumble_connect_cb_adapter(uv_tcp_ssl_t *socket, int status) {
   mumble_client_t *client = (mumble_client_t*)socket->data;
   uv_timer_start(&client->ping_timer, mumble_client_on_ping, 15000, 30000);
 
@@ -104,12 +122,21 @@ static void mumble_connect_cb_adapter(tcp_ssl_t *socket, int status) {
   mumble_client_write(client, (ProtobufCMessage*)&version);
 
   MumbleProto__Authenticate authenticate = MUMBLE_PROTO__AUTHENTICATE__INIT;
-  authenticate.username = client->nick;
+  authenticate.username = dupstr(client->nick);
+  authenticate.opus = 1;
+  authenticate.has_opus = 1;
   mumble_client_write(client, (ProtobufCMessage*)&authenticate);
 
   MumbleProto__Ping ping = MUMBLE_PROTO__PING__INIT;
   ping.timestamp = (int)time(NULL);
   mumble_client_write(client, (ProtobufCMessage*)&ping);
+}
+
+static void mumble_on_audio(mumble_audio_t *audio, void *data, const audio_decoded_t *decoded) {
+  mumble_client_t *client = (mumble_client_t*)data;
+  if (client->on_audio.cb != NULL) {
+    client->on_audio.cb(client, client->on_audio.data, decoded);
+  }
 }
 
 void mumble_client_init(mumble_client_t *client, const char *hostname, uint16_t port, const char* nick) {
@@ -125,6 +152,9 @@ void mumble_client_init(mumble_client_t *client, const char *hostname, uint16_t 
 
   uv_timer_init(uv_default_loop(), &client->ping_timer);
   client->ping_timer.data = client;
+
+  mumble_audio_init(&client->audio, &client->socket, hostname, port);
+  mumble_audio_set_cb(&client->audio, mumble_on_audio, client);
 }
 
 void mumble_client_connect(mumble_client_t *client) {
@@ -133,8 +163,14 @@ void mumble_client_connect(mumble_client_t *client) {
   mumble_uv_ssl_connect(&client->socket, client->hostname, port_str, mumble_connect_cb_adapter);
 }
 
-void mumble_client_set_on_message(mumble_client_t *client, mumble_client_on_message cb) {
-  client->on_message = cb;
+void mumble_client_set_on_audio(mumble_client_t *client, mumble_client_on_audio cb, void *data) {
+  client->on_audio.cb = cb;
+  client->on_audio.data = data;
+}
+
+void mumble_client_set_on_message(mumble_client_t *client, mumble_client_on_message cb, void *data) {
+  client->on_message.cb = cb;
+  client->on_message.data = data;
 }
 
 static int get_message_type(ProtobufCMessage *message) {
@@ -167,4 +203,8 @@ void mumble_client_write(mumble_client_t *client, ProtobufCMessage *message) {
   protobuf_c_message_pack(message, buffer + sizeof(uint16_t) + sizeof(uint32_t));
 
   mumble_uv_ssl_write(&client->socket, buffer, total_size);
+}
+
+void mumble_client_write_audio(mumble_client_t *client, int target, pcm_t pcm) {
+  mumble_audio_send(&client->audio, target, &pcm);
 }

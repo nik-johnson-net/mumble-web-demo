@@ -30,3 +30,13 @@ ExternalProject_Get_Property(PROTOBUF_C install_dir)
 set(PROTOBUF_C_INCLUDE_DIR "${install_dir}/include" PARENT_SCOPE)
 set(PROTOBUF_C_LIBRARIES "${install_dir}/lib" PARENT_SCOPE)
 set(PROTOBUF_C_BIN "${install_dir}/bin" PARENT_SCOPE)
+
+# Opus
+ExternalProject_Add(OPUS
+  URL "${CMAKE_CURRENT_SOURCE_DIR}/opus-1.1.1"
+  CONFIGURE_COMMAND "autoreconf" "-i" COMMAND "<SOURCE_DIR>/configure" "--prefix=<INSTALL_DIR>"
+  BUILD_IN_SOURCE 1
+)
+ExternalProject_Get_Property(OPUS install_dir)
+set(OPUS_INCLUDE_DIR "${install_dir}/include" PARENT_SCOPE)
+set(OPUS_LIBRARIES "${install_dir}/lib" PARENT_SCOPE)

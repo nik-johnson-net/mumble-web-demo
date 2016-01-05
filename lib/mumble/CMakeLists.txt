@@ -4,9 +4,15 @@ include(FindOpenSSL)
 
 add_library(mumble
   STATIC
+  audio.c
+  audio_decoder.c
+  audio_encoder.c
+  codec/opus.c
   mumble.c
   proto/Mumble.pb-c.c
-  uv_ssl.c
+  util.c
+  uv_tcp_ssl.c
+  uv_udp_ssl.c
 )
 
 add_custom_command(
@@ -23,4 +29,5 @@ target_include_directories(mumble
   PUBLIC ${OPENSSL_INCLUDE_DIR}
   PUBLIC ${PROTOBUF_C_INCLUDE_DIR}
   PUBLIC ${PROTOBUF_INCLUDE_DIR}
+  PUBLIC ${OPUS_INCLUDE_DIR}
 )

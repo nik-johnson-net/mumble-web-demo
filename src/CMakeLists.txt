@@ -19,7 +19,9 @@ target_link_libraries(mumbleweb
   ${UV_LIBRARIES}/libuv.a
   ${PROTOBUF_C_LIBRARIES}/libprotobuf-c.a
   ${PROTOBUF_LIBRARIES}/libprotobuf.a
+  ${OPUS_LIBRARIES}/libopus.a
   "pthread"
   "ssl"
   "crypto"
+  "m"
 )
