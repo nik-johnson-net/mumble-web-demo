@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <opus/opus.h>
 #include <stdlib.h>
+#include <string.h>
 #include "../util.h"
 
 

@@ -7,6 +7,7 @@ add_library(mumble
   audio.c
   audio_decoder.c
   audio_encoder.c
+  buffer.c
   codec/opus.c
   mumble.c
   proto/Mumble.pb-c.c
