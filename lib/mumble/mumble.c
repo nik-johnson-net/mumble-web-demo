@@ -49,11 +49,22 @@ static const ProtobufCMessageDescriptor *descriptors(void) {
   return _descriptors;
 }
 
-static void mumble_message_(mumble_client_t *client, int type, ProtobufCMessage *message) {
+static void mumble_message_internal(mumble_client_t *client, int type, ProtobufCMessage *message) {
   switch (type) {
     case MUMBLE_TYPE_UDPTUNNEL:
-      ;
-      MumbleProto__UDPTunnel *tunnel = (MumbleProto__UDPTunnel*)message;
+      {
+        MumbleProto__UDPTunnel *msg = (MumbleProto__UDPTunnel*)message;
+      }
+      break;
+    case MUMBLE_TYPE_CRYPT_SETUP:
+      {
+        MumbleProto__CryptSetup *msg = (MumbleProto__CryptSetup*)message;
+        assert(msg->has_key);
+        assert(msg->has_client_nonce);
+        assert(msg->has_server_nonce);
+        printf("Have crypt: %d", msg->key.len);
+        mumble_audio_encryption(&client->audio, msg->key.data, msg->client_nonce.data, msg->server_nonce.data);
+      }
       break;
   }
 }
@@ -65,7 +76,7 @@ static void mumble_message_parse(mumble_client_t *client, const mumble_packet_t 
   /* Special processing for audio tunnel */
   if (p->type == MUMBLE_TYPE_UDPTUNNEL) {
     mumble_audio_decoder_t *decoder = mumble_audio_decoder(&client->audio);
-    audio_decoded_t decoded;
+    audio_packet_t decoded;
     mumble_audio_decoder_decode(decoder, p->payload, p->length, &decoded);
     return;
   }
@@ -76,8 +87,11 @@ static void mumble_message_parse(mumble_client_t *client, const mumble_packet_t 
 
   message = protobuf_c_message_unpack(&descriptor, NULL, p->length, (const uint8_t*)p->payload);
 
-  if (message != NULL && client->on_message.cb != NULL) {
-    client->on_message.cb(client, client->on_message.data, p->type, message);
+  if (message != NULL) {
+    mumble_message_internal(client, p->type, message);
+    if (client->on_message.cb != NULL) {
+      client->on_message.cb(client, client->on_message.data, p->type, message);
+    }
   }
 }
 
@@ -132,7 +146,7 @@ static void mumble_connect_cb_adapter(uv_tcp_ssl_t *socket, int status) {
   mumble_client_write(client, (ProtobufCMessage*)&ping);
 }
 
-static void mumble_on_audio(mumble_audio_t *audio, void *data, const audio_decoded_t *decoded) {
+static void mumble_on_audio(mumble_audio_t *audio, void *data, const audio_packet_t *decoded) {
   mumble_client_t *client = (mumble_client_t*)data;
   if (client->on_audio.cb != NULL) {
     client->on_audio.cb(client, client->on_audio.data, decoded);

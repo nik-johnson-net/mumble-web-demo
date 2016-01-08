@@ -256,7 +256,7 @@ void mumble_uv_ssl_set_cb(uv_tcp_ssl_t *socket, mumble_uv_read_cb cb) {
   socket->cb = cb;
 }
 
-int mumble_uv_ssl_write(uv_tcp_ssl_t *socket, const void* buf, int size) {
+int mumble_uv_ssl_write(const uv_tcp_ssl_t *socket, const void* buf, int size) {
   int ret = SSL_write(socket->ssl, buf, size);
   assert(ret > 1);
 }

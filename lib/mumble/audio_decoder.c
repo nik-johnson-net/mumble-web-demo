@@ -13,7 +13,7 @@ void mumble_audio_decoder_init(mumble_audio_decoder_t *decoder) {
   assert(decoder->opus != NULL);
 }
 
-int mumble_audio_decoder_decode(mumble_audio_decoder_t *decoder, const char *buf, int len, audio_decoded_t *audio) {
+int mumble_audio_decoder_decode(mumble_audio_decoder_t *decoder, const char *buf, int len, audio_packet_t *audio) {
   decoder->packets++;
   assert(len > 8);
 

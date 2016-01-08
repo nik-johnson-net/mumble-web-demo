@@ -90,8 +90,8 @@ int varint_encode_size(uint64_t source) {
 }
 
 static void write_buf(char *buf, int *pos, int *written, char value) {
-  buf[*pos++] = value;
-  *written++;
+  buf[(*pos)++] = value;
+  (*written)++;
 }
 
 int varint_encode(uint64_t source, char *buf, int size, int *written) {
@@ -100,7 +100,7 @@ int varint_encode(uint64_t source, char *buf, int size, int *written) {
     return 1;
   }
 
-  written = 0;
+  *written = 0;
   int pos = 0;
 
   if (source < 0) {

@@ -8,7 +8,7 @@
 
 struct _mumble_audio_t;
 
-typedef void (*mumble_audio_on_audio_cb)(struct _mumble_audio_t *audio, void *data, const audio_decoded_t *decoded);
+typedef void (*mumble_audio_on_audio_cb)(struct _mumble_audio_t *audio, void *data, const audio_packet_t *decoded);
 
 typedef struct {
   mumble_audio_on_audio_cb cb;

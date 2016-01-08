@@ -5,11 +5,11 @@
 
 static void udp_cb(uv_udp_ssl_t *conn, void *data, char *buf, size_t len) {
   mumble_audio_t *audio = (mumble_audio_t*)data;
-  audio_decoded_t decoded;
+  audio_packet_t decoded;
   mumble_audio_decoder_decode(&audio->decoder, buf, len, &decoded);
 }
 
-static void decoder_cb(mumble_audio_decoder_t *decoder, void *data, const audio_decoded_t *decoded) {
+static void decoder_cb(mumble_audio_decoder_t *decoder, void *data, const audio_packet_t *decoded) {
   mumble_audio_t *audio = (mumble_audio_t*)data;
 
   if (audio->cb.cb != NULL) {
@@ -17,15 +17,33 @@ static void decoder_cb(mumble_audio_decoder_t *decoder, void *data, const audio_
   }
 }
 
-static void encoder_cb(mumble_audio_encoder_t *encoder, void *data, const audio_encoded_t *encoded) {
+static void encoder_cb(mumble_audio_encoder_t *encoder, void *data, const char *buf, unsigned size) {
   mumble_audio_t *audio = (mumble_audio_t*)data;
-
-  // Serialize
 
   if (audio->udp_connected) {
     // Send to UDP
+    assert(0);
   } else {
-    // Send to TCP
+    // Add header
+    int length = size + 6;
+    char* tcp_buf = malloc(length);
+    memset(tcp_buf, 0, length);
+    assert(tcp_buf != NULL);
+
+    short *type = (short*)tcp_buf;
+    *type = htons(MUMBLE_TYPE_UDPTUNNEL);
+    uint32_t *len = (uint32_t*)(tcp_buf + sizeof(short));
+    *len = htonl(size);
+    memcpy(tcp_buf + 6, buf, size);
+
+    for (int i = 0; i < length; i++) {
+      printf("%02x ", ((const unsigned char *) tcp_buf)[i] & 0xff);
+    }
+    printf("\n");
+
+    printf("%d -> %d\n", size, length);
+    mumble_uv_ssl_write(audio->tcp, tcp_buf, length);
+    free(tcp_buf);
   }
 }
 
@@ -43,7 +61,7 @@ void mumble_audio_init(mumble_audio_t *audio, const uv_tcp_ssl_t *tcp, const cha
   uv_udp_ssl_init(&audio->udp);
   uv_udp_ssl_set_cb(&audio->udp, udp_cb, audio);
 
-  mumble_audio_encoder_init(&audio->encoder);
+  mumble_audio_encoder_init(&audio->encoder, 48000, 20, 0);
   mumble_audio_encoder_set_cb(&audio->encoder, encoder_cb, audio);
 
   mumble_audio_decoder_init(&audio->decoder);
@@ -61,7 +79,7 @@ mumble_audio_decoder_t* mumble_audio_decoder(mumble_audio_t *audio) {
 }
 
 void mumble_audio_send(mumble_audio_t *audio, int target, const pcm_t *pcm) {
-  mumble_audio_encoder_encode(&audio->encoder, pcm);
+  mumble_audio_encoder_encode(&audio->encoder, target, pcm, NULL);
 }
 
 void mumble_audio_set_cb(mumble_audio_t *audio, mumble_audio_on_audio_cb cb, void *data) {
