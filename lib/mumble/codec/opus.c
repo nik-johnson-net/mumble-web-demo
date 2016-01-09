@@ -40,7 +40,7 @@ typedef struct _codec_opus_encoder_t {
   struct _mumble_codec_cb_t cb;
 } codec_opus_encoder_t;
 
-codec_opus_decoder_t *mumble_codec_opus_create(void) {
+codec_opus_decoder_t *mumble_codec_opus_create_decoder(void) {
   codec_opus_decoder_t *codec = malloc(sizeof(codec_opus_decoder_t));
   assert(codec != NULL);
   memset(codec, 0, sizeof(codec_opus_decoder_t));

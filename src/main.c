@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <mumble/mumble.h>
+#include <mumble/mumble_client.h>
 #include <mumble/proto/Mumble.pb-c.h>
 
 #define PI 3.14159265

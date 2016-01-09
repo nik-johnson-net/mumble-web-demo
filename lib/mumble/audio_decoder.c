@@ -9,7 +9,7 @@
 
 void mumble_audio_decoder_init(mumble_audio_decoder_t *decoder) {
   memset(decoder, 0, sizeof(mumble_audio_decoder_t));
-  decoder->opus = mumble_codec_opus_create();
+  decoder->opus = mumble_codec_opus_create_decoder();
   assert(decoder->opus != NULL);
 }
 

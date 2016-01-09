@@ -1,4 +1,4 @@
-#include "mumble.h"
+#include "mumble_client.h"
 #include "proto/Mumble.pb-c.h"
 #include "util.h"
 

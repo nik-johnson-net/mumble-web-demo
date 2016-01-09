@@ -9,7 +9,7 @@ add_library(mumble
   audio_encoder.c
   buffer.c
   codec/opus.c
-  mumble.c
+  mumble_client.c
   proto/Mumble.pb-c.c
   util.c
   uv_tcp_ssl.c
