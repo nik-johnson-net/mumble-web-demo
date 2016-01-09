@@ -73,7 +73,8 @@ void uv_udp_ssl_write(uv_udp_ssl_t *conn, const struct sockaddr *addr, const cha
   assert(send_buffer.base != NULL);
 
   /* build cipher text */
-  int ret = EVP_EncryptUpdate(&enc, (unsigned char*)&send_buffer.base, &send_buffer.len, buf, len);
+  int t_size = (int)send_buffer.len;
+  int ret = EVP_EncryptUpdate(&enc, (unsigned char*)&send_buffer.base, &t_size, buf, len);
 
   /* Output padded tail */
   int final_out = 0;
