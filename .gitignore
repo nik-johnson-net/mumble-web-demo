@@ -10,6 +10,7 @@
 a.out
 build/
 CMakeCache.txt
+lib/mumble/ocb_aes_test
 lib/mumble/proto/Mumble.pb-c.*
 Makefile
 src/mumbleweb
