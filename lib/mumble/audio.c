@@ -6,7 +6,18 @@
 static void udp_cb(uv_udp_ssl_t *conn, void *data, char *buf, size_t len) {
   mumble_audio_t *audio = (mumble_audio_t*)data;
   audio_packet_t decoded;
-  mumble_audio_decoder_decode(&audio->decoder, buf, len, &decoded);
+
+  if (*buf == 0x20) {
+    // If it's a ping packet, parse and notify pinger
+    uint64_t timestamp;
+    int ret = varint_decode(buf + 1, len - 1, &timestamp);
+    assert(ret > 0);
+
+    mumble_udp_ping_recv(&audio->pinger, timestamp);
+  } else {
+    // If it's an audio packet, fwd to decoder
+    mumble_audio_decoder_decode(&audio->decoder, buf, len, &decoded);
+  }
 }
 
 static void decoder_cb(mumble_audio_decoder_t *decoder, void *data, const audio_packet_t *decoded) {
@@ -20,9 +31,9 @@ static void decoder_cb(mumble_audio_decoder_t *decoder, void *data, const audio_
 static void encoder_cb(mumble_audio_encoder_t *encoder, void *data, const char *buf, unsigned size) {
   mumble_audio_t *audio = (mumble_audio_t*)data;
 
-  if (audio->udp_connected) {
+  if (audio->pinger.connected) {
     // Send to UDP
-    assert(0);
+    uv_udp_ssl_write(&audio->udp,(struct sockaddr*)&audio->addr, buf, size);
   } else {
     // Add header
     int length = size + 6;
@@ -36,27 +47,20 @@ static void encoder_cb(mumble_audio_encoder_t *encoder, void *data, const char *
     *len = htonl(size);
     memcpy(tcp_buf + 6, buf, size);
 
-    for (int i = 0; i < length; i++) {
-      printf("%02x ", ((const unsigned char *) tcp_buf)[i] & 0xff);
-    }
-    printf("\n");
-
-    printf("%d -> %d\n", size, length);
     mumble_uv_ssl_write(audio->tcp, tcp_buf, length);
     free(tcp_buf);
   }
 }
 
-void mumble_audio_encryption(mumble_audio_t *audio, const char *key, const char *enc_iv, const char *dec_iv) {
-  uv_udp_ssl_set_encryption(&audio->udp, key, enc_iv, dec_iv);
+void mumble_audio_encryption(mumble_audio_t *audio, const char *key, const char *enc_iv, const char *dec_iv, unsigned ivlen) {
+  uv_udp_ssl_set_encryption(&audio->udp, key, enc_iv, dec_iv, ivlen);
+  mumble_udp_ping_start(&audio->pinger);
 }
 
-void mumble_audio_init(mumble_audio_t *audio, const uv_tcp_ssl_t *tcp, const char *address, unsigned short port) {
+void mumble_audio_init(mumble_audio_t *audio, const uv_tcp_ssl_t *tcp) {
   memset(audio, 0, sizeof(mumble_audio_t));
 
   audio->tcp = tcp;
-  audio->address = dupstr(address);
-  audio->port = port;
 
   uv_udp_ssl_init(&audio->udp);
   uv_udp_ssl_set_cb(&audio->udp, udp_cb, audio);
@@ -67,11 +71,11 @@ void mumble_audio_init(mumble_audio_t *audio, const uv_tcp_ssl_t *tcp, const cha
   mumble_audio_decoder_init(&audio->decoder);
   mumble_audio_decoder_set_cb(&audio->decoder, decoder_cb, audio);
 
-  assert(audio->address);
+  mumble_udp_ping_init(&audio->pinger, &audio->udp);
 }
 
 int mumble_audio_is_udp(mumble_audio_t *audio) {
-  return audio->udp_connected;
+  return audio->pinger.connected;
 }
 
 mumble_audio_decoder_t* mumble_audio_decoder(mumble_audio_t *audio) {
@@ -85,4 +89,16 @@ void mumble_audio_send(mumble_audio_t *audio, int target, const pcm_t *pcm) {
 void mumble_audio_set_cb(mumble_audio_t *audio, mumble_audio_on_audio_cb cb, void *data) {
   audio->cb.cb = cb;
   audio->cb.data = data;
+}
+
+void mumble_audio_start(mumble_audio_t *audio) {
+  int peer_len = sizeof(struct sockaddr_storage);
+  mumble_uv_ssl_peername(audio->tcp, (struct sockaddr*)&audio->addr, &peer_len);
+  audio->peer_addr_len = peer_len;
+
+  mumble_udp_ping_address(&audio->pinger, &audio->addr);
+}
+
+void mumble_audio_stop(mumble_audio_t *audio) {
+  mumble_udp_ping_stop(&audio->pinger);
 }

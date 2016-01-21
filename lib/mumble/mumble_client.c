@@ -62,8 +62,7 @@ static void mumble_message_internal(mumble_client_t *client, int type, ProtobufC
         assert(msg->has_key);
         assert(msg->has_client_nonce);
         assert(msg->has_server_nonce);
-        printf("Have crypt: %d", msg->key.len);
-        mumble_audio_encryption(&client->audio, msg->key.data, msg->client_nonce.data, msg->server_nonce.data);
+        mumble_audio_encryption(&client->audio, msg->key.data, msg->client_nonce.data, msg->server_nonce.data, msg->client_nonce.len);
       }
       break;
   }
@@ -129,18 +128,27 @@ static void mumble_client_on_ping(uv_timer_t *handle) {
 
 static void mumble_connect_cb_adapter(uv_tcp_ssl_t *socket, int status) {
   mumble_client_t *client = (mumble_client_t*)socket->data;
+
+  // Start audio subsystem
+  mumble_audio_start(&client->audio);
+
+  // Begin ping timer
+  // TODO(jumpandspintowin): Split TCP Ping into subsystem
   uv_timer_start(&client->ping_timer, mumble_client_on_ping, 15000, 30000);
 
+  // Send version info, lets the server know we accept the 1.2.5 protocol
   MumbleProto__Version version = MUMBLE_PROTO__VERSION__INIT;
   version.version = (1 << 16) | (2 << 8) | 5;
   mumble_client_write(client, (ProtobufCMessage*)&version);
 
+  // Send Auth info. Tells the server the username and that opus is supported.
   MumbleProto__Authenticate authenticate = MUMBLE_PROTO__AUTHENTICATE__INIT;
   authenticate.username = dupstr(client->nick);
   authenticate.opus = 1;
   authenticate.has_opus = 1;
   mumble_client_write(client, (ProtobufCMessage*)&authenticate);
 
+  // Send an initial ping
   MumbleProto__Ping ping = MUMBLE_PROTO__PING__INIT;
   ping.timestamp = (int)time(NULL);
   mumble_client_write(client, (ProtobufCMessage*)&ping);
@@ -167,7 +175,7 @@ void mumble_client_init(mumble_client_t *client, const char *hostname, uint16_t 
   uv_timer_init(uv_default_loop(), &client->ping_timer);
   client->ping_timer.data = client;
 
-  mumble_audio_init(&client->audio, &client->socket, hostname, port);
+  mumble_audio_init(&client->audio, &client->socket);
   mumble_audio_set_cb(&client->audio, mumble_on_audio, client);
 }
 

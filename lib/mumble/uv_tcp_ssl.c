@@ -151,6 +151,11 @@ void mumble_uv_ssl_free(uv_tcp_ssl_t *socket) {
   SSL_free(socket->ssl);
 }
 
+void mumble_uv_ssl_peername(const uv_tcp_ssl_t *socket, struct sockaddr *name, int *namelen) {
+  int ret = uv_tcp_getpeername(&socket->tcp, name, namelen);
+  assert(ret == 0);
+}
+
 static void default_alloc_cb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
   buf->base = (char*)malloc(suggested_size);
   buf->len = suggested_size;

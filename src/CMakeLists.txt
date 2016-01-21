@@ -1,4 +1,5 @@
 add_definitions(-std=gnu11)
+add_definitions(-fstack-protector)
 
 add_executable(mumbleweb
   main.c

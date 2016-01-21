@@ -20,7 +20,6 @@ uint16_t* tone(double time, int sample_rate, int frequency) {
 
     // Normalize to 16bit
     uint16_t bit_sample = (sample + 1) * ((1 << 15) - 1);
-    printf("%hu ", bit_sample);
 
     tone[i] = bit_sample;
   }

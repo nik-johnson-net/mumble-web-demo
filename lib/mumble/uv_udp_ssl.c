@@ -5,44 +5,58 @@
 #include <string.h>
 #include "util.h"
 
-#define DECRYPTING 0
-#define ENCRYPTING 1
-
 struct decrypted {
   char *buf;
   size_t len;
 };
 
-static void init_ssl_cipher(EVP_CIPHER_CTX *a, unsigned char *key, unsigned char *iv, int enc) {
-  EVP_CIPHER_CTX_init(a);
-  EVP_CipherInit_ex(a, EVP_aes_128_ofb(), NULL, key, iv, enc);
-}
-
-static void free_if_allocated(char **str) {
-  assert(str != NULL);
-
-  if (*str != NULL) {
-    free(*str);
-    *str = NULL;
+static void increment_iv(unsigned char *iv, unsigned len) {
+  for (int i = 0; i < len; i++) {
+    iv[i]++;
+    if (iv[i] != 0) {
+      break;
+    }
   }
 }
 
 static void uv_udp_ssl_decrypt(uv_udp_ssl_t *conn, char *buf, size_t len) {
-  EVP_CIPHER_CTX dec;
-  init_ssl_cipher(&dec, conn->key, conn->dec_iv, DECRYPTING);
-  EVP_CIPHER_CTX_cleanup(&dec);
+  unsigned char iv;
+  unsigned char tag[3];
+  unsigned char intag[16];
+  unsigned char out[10240];
+
+  increment_iv(conn->cipher.dec_iv, conn->cipher.ivlen);
+  iv = buf[0];
+  tag[0] = buf[1];
+  tag[1] = buf[2];
+  tag[2] = buf[3];
+
+  ocb2_aes_decrypt(&conn->cipher, buf+4, len-4, out, intag);
+
+  if (conn->cb.cb) {
+    conn->cb.cb(conn, conn->cb.data, out, len - 4);
+  }
+}
+
+static void recv_cb(uv_udp_t* handle, ssize_t nread, const uv_buf_t* buf, const struct sockaddr* addr, unsigned flags) {
+  uv_udp_ssl_t *conn = handle->data;
+  if (nread > 0) {
+    uv_udp_ssl_decrypt(conn, buf->base, nread);
+  }
+  free(buf->base);
+}
+
+static void alloc_cb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
+  buf->base = malloc(suggested_size);
+  buf->len = buf->base == NULL ? 0 : suggested_size;
 }
 
 void uv_udp_ssl_init(uv_udp_ssl_t *conn) {
   memset(conn, 0, sizeof(uv_udp_ssl_t));
 
   uv_udp_init(uv_default_loop(), &conn->socket);
-}
-
-void uv_udp_ssl_clean(uv_udp_ssl_t *conn) {
-  free_if_allocated(&conn->key);
-  free_if_allocated(&conn->enc_iv);
-  free_if_allocated(&conn->dec_iv);
+  uv_udp_recv_start(&conn->socket, alloc_cb, recv_cb);
+  conn->socket.data = conn;
 }
 
 void uv_udp_ssl_set_cb(uv_udp_ssl_t *conn, uv_udp_ssl_cb cb, void *data) {
@@ -50,41 +64,32 @@ void uv_udp_ssl_set_cb(uv_udp_ssl_t *conn, uv_udp_ssl_cb cb, void *data) {
   conn->cb.data = data;
 }
 
-void uv_udp_ssl_set_encryption(uv_udp_ssl_t *conn, const char *key, const char *enc_iv, const char *dec_iv) {
-  uv_udp_ssl_clean(conn);
+void uv_udp_ssl_set_encryption(uv_udp_ssl_t *conn, const char *key, const char *enc_iv, const char *dec_iv, unsigned ivlen) {
+  ocb_aes_set_keys(&conn->cipher, key, enc_iv, dec_iv, ivlen);
+}
 
-  conn->key = dupstr(key);
-  conn->enc_iv = dupstr(enc_iv);
-  conn->dec_iv = dupstr(dec_iv);
-
-  assert(conn->key);
-  assert(conn->enc_iv);
-  assert(conn->dec_iv);
+static int encrypt_ocb(uv_udp_ssl_t *conn, const char *source, char *dest, size_t len, char *tag) {
+  increment_iv(conn->cipher.enc_iv, conn->cipher.ivlen);
+  ocb2_aes_encrypt(&conn->cipher, source, len, dest, tag);
+  return len;
 }
 
 void uv_udp_ssl_write(uv_udp_ssl_t *conn, const struct sockaddr *addr, const char *buf, size_t len) {
   uv_buf_t send_buffer;
+  send_buffer.base = conn->out_buffer;
+  send_buffer.len = MAX_UDP_SIZE;
+  char tag[16];
 
-  EVP_CIPHER_CTX enc;
-  init_ssl_cipher(&enc, conn->key, conn->enc_iv, ENCRYPTING);
-
-  /* allocate enough room */
-  send_buffer.base = malloc(send_buffer.len);
-  assert(send_buffer.base != NULL);
-
-  /* build cipher text */
-  int t_size = (int)send_buffer.len;
-  int ret = EVP_EncryptUpdate(&enc, (unsigned char*)&send_buffer.base, &t_size, buf, len);
-
-  /* Output padded tail */
-  int final_out = 0;
-  ret = EVP_EncryptFinal(&enc, (unsigned char*)&send_buffer.base + send_buffer.len, &final_out);
-  send_buffer.len += final_out;
-
-  /* The cipher isn't needed anymore */
-  EVP_CIPHER_CTX_cleanup(&enc);
+  int out_size = encrypt_ocb(conn, buf, send_buffer.base + 4, len, tag);
+  send_buffer.base[0] = conn->cipher.enc_iv[0];
+  send_buffer.base[1] = tag[0];
+  send_buffer.base[2] = tag[1];
+  send_buffer.base[3] = tag[2];
 
   /* Send chunk out */
-  uv_udp_send_t req;
-  ret = uv_udp_send(&req, &conn->socket, &send_buffer, 1, addr, NULL);
+  send_buffer.len = out_size + 4;
+  int ret = uv_udp_try_send(&conn->socket, &send_buffer, 1, addr);
+  assert(ret > 0);
+
+  // TODO: free
 }

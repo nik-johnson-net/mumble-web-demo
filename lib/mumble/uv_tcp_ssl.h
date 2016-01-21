@@ -25,6 +25,7 @@ void mumble_uv_ssl_init(uv_tcp_ssl_t *socket);
 void mumble_uv_ssl_close(uv_tcp_ssl_t *socket);
 void mumble_uv_ssl_connect(uv_tcp_ssl_t *socket, const char* hostname, const char* port, mumble_uv_connect_cb cb);
 void mumble_uv_ssl_free(uv_tcp_ssl_t *socket);
+void mumble_uv_ssl_peername(const uv_tcp_ssl_t *socket, struct sockaddr *name, int *namelen);
 void mumble_uv_ssl_set_data(uv_tcp_ssl_t *socket, void *data);
 void mumble_uv_ssl_set_cb(uv_tcp_ssl_t *socket, mumble_uv_read_cb cb);
 int mumble_uv_ssl_write(const uv_tcp_ssl_t *socket, const void* buf, int size);
