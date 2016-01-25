@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "audio.h"
+#include "frame_decoder.h"
 #include "uv_tcp_ssl.h"
 
 #include "proto/Mumble.pb-c.h"
@@ -31,14 +32,16 @@ typedef struct {
 } mumble_client_on_audio_t;
 
 struct _mumble_client_t {
-  mumble_audio_t audio;
   const char *hostname;
   uint16_t port;
   const char *nick;
   uv_tcp_ssl_t socket;
   uv_timer_t ping_timer;
+
+  mumble_audio_t audio;
   mumble_client_on_message_t on_message;
   mumble_client_on_audio_t on_audio;
+  mumble_frame_decoder_t decoder;
 };
 typedef struct _mumble_client_t mumble_client_t;
 

@@ -9,7 +9,6 @@
 
 #include <openssl/ssl.h>
 #include <uv.h>
-#include <arpa/inet.h>
 
 static ProtobufCMessageDescriptor *_descriptors = NULL;
 static const ProtobufCMessageDescriptor *descriptors(void) {
@@ -49,6 +48,7 @@ static const ProtobufCMessageDescriptor *descriptors(void) {
   return _descriptors;
 }
 
+
 static void mumble_message_internal(mumble_client_t *client, int type, ProtobufCMessage *message) {
   switch (type) {
     case MUMBLE_TYPE_UDPTUNNEL:
@@ -68,52 +68,37 @@ static void mumble_message_internal(mumble_client_t *client, int type, ProtobufC
   }
 }
 
-static void mumble_message_parse(mumble_client_t *client, const mumble_packet_t *p) {
-  ProtobufCMessage *message = NULL;
-  ProtobufCMessageDescriptor descriptor;
-
-  /* Special processing for audio tunnel */
-  if (p->type == MUMBLE_TYPE_UDPTUNNEL) {
-    mumble_audio_decoder_t *decoder = mumble_audio_decoder(&client->audio);
-    audio_packet_t decoded;
-    mumble_audio_decoder_decode(decoder, p->payload, p->length, &decoded);
-    return;
-  }
-
-  if (p->type < MUMBLE_TYPE_COUNT) {
-    descriptor = descriptors()[p->type];
-  }
-
-  message = protobuf_c_message_unpack(&descriptor, NULL, p->length, (const uint8_t*)p->payload);
-
-  if (message != NULL) {
-    mumble_message_internal(client, p->type, message);
-    if (client->on_message.cb != NULL) {
-      client->on_message.cb(client, client->on_message.data, p->type, message);
-    }
-  }
-}
-
 static void mumble_message_cb_adapter(uv_tcp_ssl_t *socket, int status, const void* buf, int size) {
   mumble_client_t *client = (mumble_client_t*)socket->data;
-  const char* ptr = buf;
-  const char* end = buf + size;
-  while (ptr < end) {
-    mumble_packet_t p;
+  mumble_frame_append(&client->decoder, buf, size);
 
-    p.type = ntohs(*(uint16_t*)ptr);
-    ptr += sizeof(uint16_t);
-    assert(ptr < end);
+  while (mumble_frame_ready(&client->decoder)) {
+    if (mumble_frame_is_audio(&client->decoder)) {
+      // Send to audio
+      // TODO: Static decoder instance? Free?
+      mumble_audio_decoder_t *decoder = mumble_audio_decoder(&client->audio);
+      audio_packet_t decoded;
+      mumble_audio_decoder_decode(decoder, client->decoder.buffer, client->decoder.buffer_size, &decoded);
+      mumble_frame_pop(&client->decoder);
 
-    p.length = ntohl(*(uint32_t*)ptr);
-    ptr += sizeof(uint32_t);
-    assert(ptr < end);
+    } else {
+      // Decode
+      ProtobufCMessage *message;
+      int type = mumble_frame_decode(&client->decoder, &message);
 
-    p.payload = ptr;
-    ptr += p.length;
-    assert(ptr <= end);
+      if (type >= 0) {
+        // If successful, run internal routines
+        mumble_message_internal(client, type, message);
 
-    mumble_message_parse(client, &p);
+        // Run callback
+        if (client->on_message.cb != NULL) {
+          client->on_message.cb(client, client->on_message.data, type, message);
+        }
+
+        // TODO: Proper cleanup?
+        free(message);
+      }
+    }
   }
 }
 
@@ -177,6 +162,8 @@ void mumble_client_init(mumble_client_t *client, const char *hostname, uint16_t 
 
   mumble_audio_init(&client->audio, &client->socket);
   mumble_audio_set_cb(&client->audio, mumble_on_audio, client);
+
+  mumble_frame_init(&client->decoder);
 }
 
 void mumble_client_connect(mumble_client_t *client) {
