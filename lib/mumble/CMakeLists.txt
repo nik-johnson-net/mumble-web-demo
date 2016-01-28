@@ -15,6 +15,7 @@ add_library(mumble
   mumble_client.c
   proto/Mumble.pb-c.c
   util.c
+  util/buffer_pool.c
   udp_ping.c
   uv_tcp_ssl.c
   uv_udp_ssl.c

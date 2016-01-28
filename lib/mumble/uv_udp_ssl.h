@@ -3,8 +3,7 @@
 
 #include <uv.h>
 #include "ocb_aes.h"
-
-#define MAX_UDP_SIZE 1024
+#include "util/buffer_pool.h"
 
 struct _uv_udp_ssl_t;
 
@@ -19,7 +18,7 @@ struct _uv_udp_ssl_t {
   uv_udp_t socket;
   ocb_aes_t cipher;
   struct uv_udp_ssl_cb_t cb;
-  char out_buffer[MAX_UDP_SIZE];
+  buffer_pool_t buffer_pool;
 };
 
 typedef struct _uv_udp_ssl_t uv_udp_ssl_t;

@@ -4,6 +4,8 @@
 #include <openssl/ssl.h>
 #include <uv.h>
 
+#include "util/buffer_pool.h"
+
 struct _uv_tcp_ssl_t;
 
 #define MUMBLE_CONNECTED 0
@@ -17,6 +19,7 @@ struct _uv_tcp_ssl_t {
   uv_tcp_t tcp;
   mumble_uv_read_cb cb;
   void* data;
+  buffer_pool_t buffer_pool;
 };
 
 typedef struct _uv_tcp_ssl_t uv_tcp_ssl_t;

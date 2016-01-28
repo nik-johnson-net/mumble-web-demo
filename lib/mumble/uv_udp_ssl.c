@@ -43,12 +43,16 @@ static void recv_cb(uv_udp_t* handle, ssize_t nread, const uv_buf_t* buf, const 
   if (nread > 0) {
     uv_udp_ssl_decrypt(conn, buf->base, nread);
   }
-  free(buf->base);
+  buffer_pool_release(&conn->buffer_pool, buf->base);
 }
 
 static void alloc_cb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
-  buf->base = malloc(suggested_size);
-  buf->len = buf->base == NULL ? 0 : suggested_size;
+  uv_udp_ssl_t *conn = handle->data;
+  buf->base = buffer_pool_acquire(&conn->buffer_pool);
+  if (buf->base == NULL) {
+    abort();
+  }
+  buf->len = conn->buffer_pool.size;
 }
 
 void uv_udp_ssl_init(uv_udp_ssl_t *conn) {
@@ -57,6 +61,8 @@ void uv_udp_ssl_init(uv_udp_ssl_t *conn) {
   uv_udp_init(uv_default_loop(), &conn->socket);
   uv_udp_recv_start(&conn->socket, alloc_cb, recv_cb);
   conn->socket.data = conn;
+
+  buffer_pool_init(&conn->buffer_pool, 2, 1024);
 }
 
 void uv_udp_ssl_set_cb(uv_udp_ssl_t *conn, uv_udp_ssl_cb cb, void *data) {
@@ -75,9 +81,16 @@ static int encrypt_ocb(uv_udp_ssl_t *conn, const char *source, char *dest, size_
 }
 
 void uv_udp_ssl_write(uv_udp_ssl_t *conn, const struct sockaddr *addr, const char *buf, size_t len) {
+  if (len > 1020) {
+    abort();
+  }
+
   uv_buf_t send_buffer;
-  send_buffer.base = conn->out_buffer;
-  send_buffer.len = MAX_UDP_SIZE;
+  send_buffer.base = buffer_pool_acquire(&conn->buffer_pool);
+  if (send_buffer.base == NULL) {
+    abort();
+  }
+  send_buffer.len = conn->buffer_pool.size;
   char tag[16];
 
   int out_size = encrypt_ocb(conn, buf, send_buffer.base + 4, len, tag);
@@ -91,5 +104,5 @@ void uv_udp_ssl_write(uv_udp_ssl_t *conn, const struct sockaddr *addr, const cha
   int ret = uv_udp_try_send(&conn->socket, &send_buffer, 1, addr);
   assert(ret > 0);
 
-  // TODO: free
+  buffer_pool_release(&conn->buffer_pool, send_buffer.base);
 }

@@ -8,15 +8,21 @@ typedef struct {
   mumble_uv_connect_cb cb;
 } uv_ssl_connect_req_t;
 
+typedef struct {
+  uv_tcp_ssl_t *socket;
+  char *buf;
+} uv_ssl_write_t;
+
 static void uv_ssl_handshake(uv_ssl_connect_req_t *creq);
 static void uv_ssl_write_cb(uv_write_t* req, int status);
 
-#define SSL_READ_BUFFER_SIZE 4096
 static int uv_ssl_do_read(uv_tcp_ssl_t *socket) {
   int retry = 1;
 
-  char *buf = malloc(SSL_READ_BUFFER_SIZE);
-  int ret = SSL_read(socket->ssl, buf, SSL_READ_BUFFER_SIZE);
+  char *buf = buffer_pool_acquire(&socket->buffer_pool);
+  assert(buf != NULL);
+
+  int ret = SSL_read(socket->ssl, buf, socket->buffer_pool.size);
   if (ret > 0) {
     if (socket->cb != NULL) {
       socket->cb(socket, MUMBLE_CONNECTED, buf, ret);
@@ -38,8 +44,8 @@ static int uv_ssl_do_read(uv_tcp_ssl_t *socket) {
     }
     retry = 0;
   }
-  free(buf);
 
+  buffer_pool_release(&socket->buffer_pool, buf);
   return retry;
 }
 
@@ -87,15 +93,23 @@ static long uv_ssl_wbio_cb(BIO *b, int oper, const char *argp, int argi, long ar
       ;
 
       // Allocate the req structure as required by libuv
-      uv_write_t* req = (uv_write_t*)malloc(sizeof(uv_write_t));
+      uv_write_t *req = (uv_write_t*)malloc(sizeof(uv_write_t));
 
       // Copy data from libssl buffer to a buffer usable by libuv
-      char* arg = malloc(argi);
+      char* arg = buffer_pool_acquire(&socket->buffer_pool);
+      assert(arg != NULL);
       memcpy(arg, argp, argi);
       uv_buf_t buf = uv_buf_init(arg, argi);
 
+      // allocate CB data
+      uv_ssl_write_t *data = malloc(sizeof(uv_ssl_write_t));
+      data->socket = socket;
+      data->buf = arg;
+      req->data = data;
+
       // Write to network
       int ret = uv_write(req, (uv_stream_t*)&socket->tcp, &buf, 1, uv_ssl_write_cb);
+
       assert(ret == 0);
       break;
     case BIO_CB_READ:
@@ -104,6 +118,7 @@ static long uv_ssl_wbio_cb(BIO *b, int oper, const char *argp, int argi, long ar
     default:
       break;
   }
+
   return retvalue;
 }
 
@@ -141,6 +156,8 @@ void mumble_uv_ssl_init(uv_tcp_ssl_t *socket) {
 
   SSL_set_bio(socket->ssl, rbio, wbio);
   SSL_set_connect_state(socket->ssl);
+
+  buffer_pool_init(&socket->buffer_pool, 4, 16*1024); // 4 buffers of 16kB
 }
 
 void mumble_uv_ssl_close(uv_tcp_ssl_t *socket) {
@@ -157,23 +174,29 @@ void mumble_uv_ssl_peername(const uv_tcp_ssl_t *socket, struct sockaddr *name, i
 }
 
 static void default_alloc_cb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
-  buf->base = (char*)malloc(suggested_size);
-  buf->len = suggested_size;
+  uv_tcp_ssl_t *socket = handle->data;
+  buf->base = buffer_pool_acquire(&socket->buffer_pool);
+  assert(buf->base != NULL);
+  buf->len = socket->buffer_pool.size;
 }
 
 static void uv_ssl_read_cb(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf) {
   if (nread > 0) {
-    uv_tcp_ssl_t *client = (uv_tcp_ssl_t*)stream->data;
-    BIO *rbio = SSL_get_rbio(client->ssl);
+    uv_tcp_ssl_t *socket = (uv_tcp_ssl_t*)stream->data;
+    BIO *rbio = SSL_get_rbio(socket->ssl);
     assert(rbio != NULL);
     int ret = BIO_write(rbio, buf->base, nread);
     assert(ret == nread);
-    free(buf->base);
+    buffer_pool_release(&socket->buffer_pool, buf->base);
   }
 }
 
 static void uv_ssl_write_cb(uv_write_t* req, int status) {
   assert(status == 0);
+  uv_ssl_write_t *data = req->data;
+
+  buffer_pool_release(&data->socket->buffer_pool, data->buf);
+  free(data);
   free(req);
 }
 
