@@ -46,11 +46,11 @@ static void period_timer_cb(uv_timer_t *handle) {
   uv_timer_start(&ping->reply_timer, reply_timer_cb, ping->timeout, 0);
 }
 
-void mumble_udp_ping_init(udp_ping_t *ping, uv_udp_ssl_t *socket) {
-  mumble_udp_ping_init_ex(ping, socket, DEFAULT_PING_TIMEOUT, DEFAULT_PING_PERIOD);
+void mumble_udp_ping_init(udp_ping_t *ping, uv_udp_ssl_t *socket, uv_loop_t *loop) {
+  mumble_udp_ping_init_ex(ping, socket, loop, DEFAULT_PING_TIMEOUT, DEFAULT_PING_PERIOD);
 }
 
-void mumble_udp_ping_init_ex(udp_ping_t *ping, uv_udp_ssl_t *socket, int timeout, int ping_period) {
+void mumble_udp_ping_init_ex(udp_ping_t *ping, uv_udp_ssl_t *socket, uv_loop_t *loop, int timeout, int ping_period) {
   assert(timeout > 0);
   assert(ping_period > timeout);
   assert(socket != NULL);
@@ -60,10 +60,10 @@ void mumble_udp_ping_init_ex(udp_ping_t *ping, uv_udp_ssl_t *socket, int timeout
   ping->socket = socket;
   ping->timeout = timeout;
 
-  uv_timer_init(uv_default_loop(), &ping->period_timer);
+  uv_timer_init(loop, &ping->period_timer);
   ping->period_timer.data = ping;
 
-  uv_timer_init(uv_default_loop(), &ping->reply_timer);
+  uv_timer_init(loop, &ping->reply_timer);
   ping->reply_timer.data = ping;
 
   // Header is static, so set once

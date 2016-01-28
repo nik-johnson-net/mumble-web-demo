@@ -35,7 +35,7 @@ typedef struct _mumble_audio_t mumble_audio_t;
 void mumble_audio_encryption(mumble_audio_t *audio, const char *key, const char *enc_iv, const char *dec_iv, unsigned ivlen);
 
 /* Init the interface */
-void mumble_audio_init(mumble_audio_t *audio, const uv_tcp_ssl_t *tcp);
+void mumble_audio_init(mumble_audio_t *audio, const uv_tcp_ssl_t *tcp, uv_loop_t *loop);
 
 /* Returns 1 if UDP is being used */
 int mumble_audio_is_udp(mumble_audio_t *audio);

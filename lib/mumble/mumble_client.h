@@ -46,7 +46,7 @@ struct _mumble_client_t {
 typedef struct _mumble_client_t mumble_client_t;
 
 /* Initialize a mumble connect with required args */
-void mumble_client_init(mumble_client_t *client, const char *hostname, uint16_t port, const char* nick);
+void mumble_client_init(mumble_client_t *client, uv_loop_t *loop, const char *hostname, uint16_t port, const char* nick);
 
 /* Connect to the server */
 void mumble_client_connect(mumble_client_t *client);

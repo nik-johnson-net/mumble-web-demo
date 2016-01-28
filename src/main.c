@@ -64,7 +64,7 @@ int main(int argc, char **argv) {
   SSL_library_init();
 
   mumble_client_t mclient;
-  mumble_client_init(&mclient, "jnstw.us", 64738, "testbot");
+  mumble_client_init(&mclient, uv_default_loop(), "jnstw.us", 64738, "testbot");
   mumble_client_connect(&mclient);
   mumble_client_set_on_message(&mclient, on_message, NULL);
   mumble_client_set_on_audio(&mclient, on_audio, NULL);

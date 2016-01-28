@@ -25,8 +25,8 @@ typedef struct {
   char ping_buf[PING_BUF_SIZE];
 } udp_ping_t;
 
-void mumble_udp_ping_init(udp_ping_t *ping, uv_udp_ssl_t *socket);
-void mumble_udp_ping_init_ex(udp_ping_t *ping, uv_udp_ssl_t *socket, int timeout, int ping_period);
+void mumble_udp_ping_init(udp_ping_t *ping, uv_udp_ssl_t *socket, uv_loop_t *loop);
+void mumble_udp_ping_init_ex(udp_ping_t *ping, uv_udp_ssl_t *socket, uv_loop_t *loop, int timeout, int ping_period);
 void mumble_udp_ping_address(udp_ping_t *ping, const struct sockaddr_storage *sockaddr);
 void mumble_udp_ping_recv(udp_ping_t *ping, uint64_t timestamp);
 void mumble_udp_ping_start(udp_ping_t *ping);

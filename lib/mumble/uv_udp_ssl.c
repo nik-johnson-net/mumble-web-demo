@@ -55,10 +55,10 @@ static void alloc_cb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) 
   buf->len = conn->buffer_pool.size;
 }
 
-void uv_udp_ssl_init(uv_udp_ssl_t *conn) {
+void uv_udp_ssl_init(uv_udp_ssl_t *conn, uv_loop_t *loop) {
   memset(conn, 0, sizeof(uv_udp_ssl_t));
 
-  uv_udp_init(uv_default_loop(), &conn->socket);
+  uv_udp_init(loop, &conn->socket);
   uv_udp_recv_start(&conn->socket, alloc_cb, recv_cb);
   conn->socket.data = conn;
 

@@ -146,21 +146,21 @@ static void mumble_on_audio(mumble_audio_t *audio, void *data, const audio_packe
   }
 }
 
-void mumble_client_init(mumble_client_t *client, const char *hostname, uint16_t port, const char* nick) {
+void mumble_client_init(mumble_client_t *client, uv_loop_t *loop, const char *hostname, uint16_t port, const char* nick) {
   memset(client, 0, sizeof(mumble_client_t));
 
   client->hostname = hostname;
   client->port = port;
   client->nick = nick;
 
-  mumble_uv_ssl_init(&client->socket);
+  mumble_uv_ssl_init(&client->socket, loop);
   mumble_uv_ssl_set_cb(&client->socket, mumble_message_cb_adapter);
   mumble_uv_ssl_set_data(&client->socket, client);
 
-  uv_timer_init(uv_default_loop(), &client->ping_timer);
+  uv_timer_init(loop, &client->ping_timer);
   client->ping_timer.data = client;
 
-  mumble_audio_init(&client->audio, &client->socket);
+  mumble_audio_init(&client->audio, &client->socket, loop);
   mumble_audio_set_cb(&client->audio, mumble_on_audio, client);
 
   mumble_frame_init(&client->decoder);

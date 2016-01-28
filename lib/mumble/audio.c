@@ -57,12 +57,12 @@ void mumble_audio_encryption(mumble_audio_t *audio, const char *key, const char 
   mumble_udp_ping_start(&audio->pinger);
 }
 
-void mumble_audio_init(mumble_audio_t *audio, const uv_tcp_ssl_t *tcp) {
+void mumble_audio_init(mumble_audio_t *audio, const uv_tcp_ssl_t *tcp, uv_loop_t *loop) {
   memset(audio, 0, sizeof(mumble_audio_t));
 
   audio->tcp = tcp;
 
-  uv_udp_ssl_init(&audio->udp);
+  uv_udp_ssl_init(&audio->udp, loop);
   uv_udp_ssl_set_cb(&audio->udp, udp_cb, audio);
 
   mumble_audio_encoder_init(&audio->encoder, 48000, 20, 0);
@@ -71,7 +71,7 @@ void mumble_audio_init(mumble_audio_t *audio, const uv_tcp_ssl_t *tcp) {
   mumble_audio_decoder_init(&audio->decoder);
   mumble_audio_decoder_set_cb(&audio->decoder, decoder_cb, audio);
 
-  mumble_udp_ping_init(&audio->pinger, &audio->udp);
+  mumble_udp_ping_init(&audio->pinger, &audio->udp, loop);
 }
 
 int mumble_audio_is_udp(mumble_audio_t *audio) {

@@ -23,7 +23,7 @@ struct _uv_udp_ssl_t {
 
 typedef struct _uv_udp_ssl_t uv_udp_ssl_t;
 
-void uv_udp_ssl_init(uv_udp_ssl_t *conn);
+void uv_udp_ssl_init(uv_udp_ssl_t *conn, uv_loop_t *loop);
 void uv_udp_ssl_set_cb(uv_udp_ssl_t *conn, uv_udp_ssl_cb cb, void *data);
 void uv_udp_ssl_set_encryption(uv_udp_ssl_t *conn, const char *key, const char *enc_iv, const char *dec_iv, unsigned ivlen);
 void uv_udp_ssl_write(uv_udp_ssl_t *conn, const struct sockaddr *addr, const char *buf, size_t len);
