@@ -5,6 +5,7 @@
 
 #include "audio.h"
 #include "frame_decoder.h"
+#include "frame_encoder.h"
 #include "uv_tcp_ssl.h"
 
 #include "proto/Mumble.pb-c.h"
@@ -42,6 +43,7 @@ struct _mumble_client_t {
   mumble_client_on_message_t on_message;
   mumble_client_on_audio_t on_audio;
   mumble_frame_decoder_t decoder;
+  mumble_frame_encoder_t encoder;
 };
 typedef struct _mumble_client_t mumble_client_t;
 

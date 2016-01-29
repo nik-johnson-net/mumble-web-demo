@@ -10,45 +10,6 @@
 #include <openssl/ssl.h>
 #include <uv.h>
 
-static ProtobufCMessageDescriptor *_descriptors = NULL;
-static const ProtobufCMessageDescriptor *descriptors(void) {
-  if (_descriptors == NULL) {
-    ProtobufCMessageDescriptor tdescriptors[] = {
-      mumble_proto__version__descriptor,
-      mumble_proto__udptunnel__descriptor,
-      mumble_proto__authenticate__descriptor,
-      mumble_proto__ping__descriptor,
-      mumble_proto__reject__descriptor,
-      mumble_proto__server_sync__descriptor,
-      mumble_proto__channel_remove__descriptor,
-      mumble_proto__channel_state__descriptor,
-      mumble_proto__user_remove__descriptor,
-      mumble_proto__user_state__descriptor,
-      mumble_proto__ban_list__descriptor,
-      mumble_proto__text_message__descriptor,
-      mumble_proto__permission_denied__descriptor,
-      mumble_proto__acl__descriptor,
-      mumble_proto__query_users__descriptor,
-      mumble_proto__crypt_setup__descriptor,
-      mumble_proto__context_action_modify__descriptor,
-      mumble_proto__context_action__descriptor,
-      mumble_proto__user_list__descriptor,
-      mumble_proto__voice_target__descriptor,
-      mumble_proto__permission_query__descriptor,
-      mumble_proto__codec_version__descriptor,
-      mumble_proto__user_stats__descriptor,
-      mumble_proto__request_blob__descriptor,
-      mumble_proto__server_config__descriptor,
-      mumble_proto__suggest_config__descriptor,
-    };
-    _descriptors = malloc(sizeof(tdescriptors));
-    memcpy(_descriptors, tdescriptors, sizeof(tdescriptors));
-  }
-
-  return _descriptors;
-}
-
-
 static void mumble_message_internal(mumble_client_t *client, int type, ProtobufCMessage *message) {
   switch (type) {
     case MUMBLE_TYPE_UDPTUNNEL:
@@ -164,6 +125,7 @@ void mumble_client_init(mumble_client_t *client, uv_loop_t *loop, const char *ho
   mumble_audio_set_cb(&client->audio, mumble_on_audio, client);
 
   mumble_frame_init(&client->decoder);
+  mumble_frame_encoder_init(&client->encoder);
 }
 
 void mumble_client_connect(mumble_client_t *client) {
@@ -182,36 +144,9 @@ void mumble_client_set_on_message(mumble_client_t *client, mumble_client_on_mess
   client->on_message.data = data;
 }
 
-static int get_message_type(ProtobufCMessage *message) {
-  const ProtobufCMessageDescriptor *descriptor = message->descriptor;
-  assert(strcmp(descriptor->package_name, "MumbleProto") == 0);
-
-  int type = -1;
-  for (int i = 0; i < MUMBLE_TYPE_COUNT; i++) {
-    if (strcmp(descriptor->name, descriptors()[i].name) == 0) {
-      type = i;
-      break;
-    }
-  }
-
-  return type;
-}
-
 void mumble_client_write(mumble_client_t *client, ProtobufCMessage *message) {
-  const ProtobufCMessageDescriptor *descriptor = message->descriptor;
-  int type = get_message_type(message);
-  assert(type != -1);
-
-  size_t size = protobuf_c_message_get_packed_size(message);
-  size_t total_size = sizeof(uint16_t) + sizeof(uint32_t) + size;
-  char* buffer = malloc(total_size);
-  assert(buffer != NULL);
-
-  *(uint16_t*)buffer = htons(type);
-  *(uint32_t*)(buffer + sizeof(uint16_t)) = htonl(size);
-  protobuf_c_message_pack(message, buffer + sizeof(uint16_t) + sizeof(uint32_t));
-
-  mumble_uv_ssl_write(&client->socket, buffer, total_size);
+  mumble_frame_encode(&client->encoder, message);
+  mumble_uv_ssl_write(&client->socket, client->encoder.buffer, client->encoder.buffer_size);
 }
 
 void mumble_client_write_audio(mumble_client_t *client, int target, pcm_t pcm) {

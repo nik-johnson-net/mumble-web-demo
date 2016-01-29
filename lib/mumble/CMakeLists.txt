@@ -12,6 +12,7 @@ add_library(mumble
   buffer.c
   codec/opus.c
   frame_decoder.c
+  frame_encoder.c
   mumble_client.c
   proto/Mumble.pb-c.c
   util.c

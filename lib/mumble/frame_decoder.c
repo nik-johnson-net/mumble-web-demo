@@ -10,42 +10,38 @@
 #define MUMBLE_FRAME_MAX_SIZE (1<<20)
 #define MUMBLE_FRAME_HEADER_SIZE 6
 
-static ProtobufCMessageDescriptor *_descriptors = NULL;
-static const ProtobufCMessageDescriptor *descriptors(void) {
-  if (_descriptors == NULL) {
-    ProtobufCMessageDescriptor tdescriptors[] = {
-      mumble_proto__version__descriptor,
-      mumble_proto__udptunnel__descriptor,
-      mumble_proto__authenticate__descriptor,
-      mumble_proto__ping__descriptor,
-      mumble_proto__reject__descriptor,
-      mumble_proto__server_sync__descriptor,
-      mumble_proto__channel_remove__descriptor,
-      mumble_proto__channel_state__descriptor,
-      mumble_proto__user_remove__descriptor,
-      mumble_proto__user_state__descriptor,
-      mumble_proto__ban_list__descriptor,
-      mumble_proto__text_message__descriptor,
-      mumble_proto__permission_denied__descriptor,
-      mumble_proto__acl__descriptor,
-      mumble_proto__query_users__descriptor,
-      mumble_proto__crypt_setup__descriptor,
-      mumble_proto__context_action_modify__descriptor,
-      mumble_proto__context_action__descriptor,
-      mumble_proto__user_list__descriptor,
-      mumble_proto__voice_target__descriptor,
-      mumble_proto__permission_query__descriptor,
-      mumble_proto__codec_version__descriptor,
-      mumble_proto__user_stats__descriptor,
-      mumble_proto__request_blob__descriptor,
-      mumble_proto__server_config__descriptor,
-      mumble_proto__suggest_config__descriptor,
-    };
-    _descriptors = malloc(sizeof(tdescriptors));
-    memcpy(_descriptors, tdescriptors, sizeof(tdescriptors));
-  }
+static const ProtobufCMessageDescriptor descriptor(unsigned type) {
+  ProtobufCMessageDescriptor descriptors[] = {
+    mumble_proto__version__descriptor,
+    mumble_proto__udptunnel__descriptor,
+    mumble_proto__authenticate__descriptor,
+    mumble_proto__ping__descriptor,
+    mumble_proto__reject__descriptor,
+    mumble_proto__server_sync__descriptor,
+    mumble_proto__channel_remove__descriptor,
+    mumble_proto__channel_state__descriptor,
+    mumble_proto__user_remove__descriptor,
+    mumble_proto__user_state__descriptor,
+    mumble_proto__ban_list__descriptor,
+    mumble_proto__text_message__descriptor,
+    mumble_proto__permission_denied__descriptor,
+    mumble_proto__acl__descriptor,
+    mumble_proto__query_users__descriptor,
+    mumble_proto__crypt_setup__descriptor,
+    mumble_proto__context_action_modify__descriptor,
+    mumble_proto__context_action__descriptor,
+    mumble_proto__user_list__descriptor,
+    mumble_proto__voice_target__descriptor,
+    mumble_proto__permission_query__descriptor,
+    mumble_proto__codec_version__descriptor,
+    mumble_proto__user_stats__descriptor,
+    mumble_proto__request_blob__descriptor,
+    mumble_proto__server_config__descriptor,
+    mumble_proto__suggest_config__descriptor,
+  };
 
-  return _descriptors;
+  assert(type < sizeof(descriptors));
+  return descriptors[type];
 }
 
 
@@ -120,8 +116,8 @@ int mumble_frame_decode(mumble_frame_decoder_t *ctx, ProtobufCMessage **message)
   }
 
   int type = mumble_frame_type(ctx);
-  ProtobufCMessageDescriptor descriptor = descriptors()[type];
-  *message = protobuf_c_message_unpack(&descriptor, NULL, mumble_frame_size(ctx), (const uint8_t*)ctx->buffer + MUMBLE_FRAME_HEADER_SIZE);
+  ProtobufCMessageDescriptor msg_descriptor = descriptor(type);
+  *message = protobuf_c_message_unpack(&msg_descriptor, NULL, mumble_frame_size(ctx), (const uint8_t*)ctx->buffer + MUMBLE_FRAME_HEADER_SIZE);
 
   if (message == NULL) {
     return -3;
