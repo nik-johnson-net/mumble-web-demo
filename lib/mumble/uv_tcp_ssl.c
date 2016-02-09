@@ -14,7 +14,6 @@ typedef struct {
 } uv_ssl_write_t;
 
 static void uv_ssl_handshake(uv_ssl_connect_req_t *creq);
-static void uv_ssl_write_cb(uv_write_t* req, int status);
 
 static int uv_ssl_do_read(uv_tcp_ssl_t *socket) {
   int retry = 1;
@@ -92,25 +91,17 @@ static long uv_ssl_wbio_cb(BIO *b, int oper, const char *argp, int argi, long ar
       // Writing from SSL to the network
       ;
 
-      // Allocate the req structure as required by libuv
-      uv_write_t *req = (uv_write_t*)malloc(sizeof(uv_write_t));
-
       // Copy data from libssl buffer to a buffer usable by libuv
       char* arg = buffer_pool_acquire(&socket->buffer_pool);
       assert(arg != NULL);
       memcpy(arg, argp, argi);
       uv_buf_t buf = uv_buf_init(arg, argi);
 
-      // allocate CB data
-      uv_ssl_write_t *data = malloc(sizeof(uv_ssl_write_t));
-      data->socket = socket;
-      data->buf = arg;
-      req->data = data;
-
       // Write to network
-      int ret = uv_write(req, (uv_stream_t*)&socket->tcp, &buf, 1, uv_ssl_write_cb);
+      int ret = uv_try_write(&socket->tcp, &buf, 1);
+      assert(ret == argi);
 
-      assert(ret == 0);
+      buffer_pool_release(&socket->buffer_pool, arg);
       break;
     case BIO_CB_READ:
       // Output to UV
@@ -189,15 +180,6 @@ static void uv_ssl_read_cb(uv_stream_t* stream, ssize_t nread, const uv_buf_t* b
     assert(ret == nread);
     buffer_pool_release(&socket->buffer_pool, buf->base);
   }
-}
-
-static void uv_ssl_write_cb(uv_write_t* req, int status) {
-  assert(status == 0);
-  uv_ssl_write_t *data = req->data;
-
-  buffer_pool_release(&data->socket->buffer_pool, data->buf);
-  free(data);
-  free(req);
 }
 
 static void uv_ssl_handshake(uv_ssl_connect_req_t *creq) {
